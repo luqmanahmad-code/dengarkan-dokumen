@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dengarkan – bacakan PDF dan Word dengan suara</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Literata:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+:root{--bg:#eef2f4;--surface:#fff;--ink:#17212b;--muted:#5b6b79;--accent:#0b6e8a;--on-accent:#fff;--hl:#ffe27a;--hl-ink:#17212b;--line:#d5dde3;--err:#b3261e;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1820;--surface:#17232d;--ink:#e6edf2;--muted:#98a8b5;--accent:#5cc3de;--on-accent:#06222b;--hl:#5a4a12;--hl-ink:#fff3c4;--line:#26363f;--err:#ffb4ab;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1820;--surface:#17232d;--ink:#e6edf2;--muted:#98a8b5;--accent:#5cc3de;--on-accent:#06222b;--hl:#5a4a12;--hl-ink:#fff3c4;--line:#26363f;--err:#ffb4ab;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.5 "Atkinson Hyperlegible",system-ui,sans-serif}
+main{max-width:46rem;margin:0 auto;padding:1.5rem 1rem 11rem}
+h1{font-size:1.9rem;line-height:1.15;margin:.5rem 0 .4rem;letter-spacing:-.01em}
+.lead{color:var(--muted);margin:0 0 1.25rem;max-width:56ch}
+.drop{display:flex;flex-direction:column;align-items:center;gap:.6rem;text-align:center;padding:2rem 1rem;border:2px dashed var(--line);border-radius:14px;background:var(--surface);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.drop small{color:var(--muted)}
+button,select,input,textarea{font:inherit;color:inherit}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:.6rem 1rem;cursor:pointer;min-height:44px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+details{margin:1rem 0}summary{cursor:pointer;color:var(--accent);font-weight:700}
+textarea{width:100%;min-height:8rem;margin:.6rem 0;padding:.7rem;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+#status{min-height:1.5rem;margin:.8rem 0;color:var(--muted)}#status.err{color:var(--err)}
+.doc{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:1rem 0 .5rem;padding:.6rem .9rem;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.doc b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#reader{font:400 1.2rem/1.8 Literata,Georgia,serif;margin-top:1rem}
+#reader p{margin:0 0 1.1em;max-width:68ch}
+.s{cursor:pointer;border-radius:4px;-webkit-box-decoration-break:clone;box-decoration-break:clone;transition:opacity .2s}
+.s.done{opacity:.55}
+.s.now{background:var(--hl);color:var(--hl-ink);opacity:1}
+.s:hover{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:.7rem 1rem calc(.7rem + env(safe-area-inset-bottom,0px))}
+.bar>div{max-width:46rem;margin:0 auto}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem}
+.row+.row{margin-top:.6rem}
+#seek{flex:1;min-width:8rem;accent-color:var(--accent)}
+#info{color:var(--muted);font-size:.9rem;white-space:nowrap}
+.bar select,.bar input[type=range]{min-height:36px}
+.bar select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:.3rem .5rem;max-width:100%}
+.bar label{display:flex;align-items:center;gap:.4rem;font-size:.9rem;color:var(--muted)}
+#voice{flex:1;min-width:10rem}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Dengarkan dokumenmu</h1>
+  <p class="lead">Unggah PDF, Word (.docx), atau teks, lalu biarkan suara membacakannya kalimat demi kalimat. File dibaca di perangkatmu dan tidak dikirim ke server mana pun.</p>
+
+  <div id="drop" class="drop">
+    <strong>Tarik file ke sini</strong>
+    <small>PDF, DOCX, TXT</small>
+    <button class="btn primary" id="pick" type="button">Pilih file</button>
+    <input id="file" type="file" accept=".pdf,.docx,.txt,.md" hidden>
+  </div>
+
+  <details id="paste">
+    <summary>Atau tempel teks langsung</summary>
+    <textarea id="pasteText" placeholder="Tempel teks yang ingin dibacakan"></textarea>
+    <button class="btn" id="pasteGo" type="button">Bacakan teks ini</button>
+  </details>
+
+  <div id="status" role="status" aria-live="polite"></div>
+  <div id="docbar" class="doc" hidden><b id="docname"></b><button class="btn" id="change" type="button">Ganti file</button></div>
+  <article id="reader" aria-label="Isi dokumen"></article>
+</main>
+
+<div class="bar" id="player" hidden>
+  <div>
+    <div class="row">
+      <button class="btn" id="prev" type="button" aria-label="Kalimat sebelumnya">Sebelumnya</button>
+      <button class="btn primary" id="play" type="button" style="min-width:6rem">Putar</button>
+      <button class="btn" id="next" type="button" aria-label="Kalimat berikutnya">Berikutnya</button>
+      <input id="seek" type="range" min="0" max="0" value="0" aria-label="Posisi baca">
+      <span id="info"></span>
+    </div>
+    <div class="row">
+      <select id="voice" aria-label="Suara"></select>
+      <label>Kecepatan <input id="rate" type="range" min="0.6" max="2" step="0.1" value="1"><span id="rateV">1.0×</span></label>
+      <label>Jeda tanda baca <input id="gap" type="range" min="0" max="2" step="0.1" value="1"><span id="gapV">1.0×</span></label>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const synth = window.speechSynthesis;
+let items = [], idx = 0, playing = false, token = 0, voices = [], voiceTouched = false;
+
+function status(msg, err){ const el = $('#status'); el.textContent = msg || ''; el.className = err ? 'err' : ''; }
+function store(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+function load(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+
+/* ---------- Membaca file ---------- */
+async function readPdf(file){
+  if (typeof pdfjsLib === 'undefined') throw new Error('Pustaka PDF gagal dimuat. Periksa koneksi internetmu lalu muat ulang halaman.');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let p = 1; p <= pdf.numPages; p++){
+    status('Membaca halaman ' + p + ' dari ' + pdf.numPages + '…');
+    const c = await (await pdf.getPage(p)).getTextContent();
+    let s = '';
+    c.items.forEach(it => { s += it.str + (it.hasEOL ? '\n' : ' '); });
+    pages.push(s);
+  }
+  return pages.join('\n\n');
+}
+async function readFile(file){
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'pdf') return readPdf(file);
+  if (ext === 'docx'){
+    if (typeof mammoth === 'undefined') throw new Error('Pustaka Word gagal dimuat. Periksa koneksi internetmu lalu muat ulang halaman.');
+    return (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
+  }
+  if (ext === 'txt' || ext === 'md') return file.text();
+  throw new Error('Format .' + ext + ' belum didukung. Gunakan PDF, DOCX, atau TXT.');
+}
+
+/* ---------- Memecah teks menjadi kalimat ---------- */
+function chunk(s){
+  if (s.length <= 280) return [s];
+  const parts = s.split(/(?<=[,;:])\s+/), out = [];
+  let cur = '';
+  for (const p of parts){
+    if (cur && (cur + ' ' + p).length > 280){ out.push(cur); cur = p; }
+    else cur = cur ? cur + ' ' + p : p;
+  }
+  if (cur) out.push(cur);
+  return out.flatMap(x => x.length > 400 ? (x.match(/.{1,300}(\s|$)/g) || [x]).map(y => y.trim()) : [x]);
+}
+function guessLang(t){
+  const s = t.slice(0, 4000).toLowerCase();
+  const en = (s.match(/\b(the|and|of|to|is|that)\b/g) || []).length;
+  const id = (s.match(/\b(yang|dan|di|untuk|dengan|dari)\b/g) || []).length;
+  return en > id ? 'en' : 'id';
+}
+function setText(raw, name){
+  stop();
+  let t = raw.replace(/\r/g, '').replace(/-\n(?=[a-z])/g, '').replace(/[ \t\u00a0]+/g, ' ');
+  const paras = t.split(/\n{2,}/).map(p => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
+  const reader = $('#reader');
+  reader.textContent = '';
+  items = [];
+  paras.forEach(par => {
+    const p = document.createElement('p');
+    par.split(/(?<=[.!?…])\s+(?=[A-Z0-9"“‘(])/).flatMap(chunk).forEach((txt, n, arr) => {
+      const span = document.createElement('span');
+      span.className = 's';
+      span.textContent = txt + ' ';
+      const i = items.length;
+      span.addEventListener('click', () => { idx = i; play(); });
+      p.appendChild(span);
+      items.push({ text: txt, el: span, end: n === arr.length - 1 });
+    });
+    reader.appendChild(p);
+  });
+  if (!items.length){ status('Tidak ada teks yang bisa dibaca. Jika ini PDF hasil scan (berupa gambar), teksnya perlu dikenali dulu dengan OCR.', true); return; }
+  status('');
+  $('#docname').textContent = name;
+  $('#docbar').hidden = false;
+  $('#drop').hidden = true; $('#paste').hidden = true;
+  $('#player').hidden = false;
+  $('#seek').max = items.length - 1;
+  idx = 0;
+  if (!voiceTouched) pickVoice(guessLang(t));
+  mark();
+  window.scrollTo({ top: 0 });
+}
+async function handleFile(file){
+  if (!file) return;
+  status('Membuka ' + file.name + '…');
+  try { setText(await readFile(file), file.name); }
+  catch(e){ status(e.message || 'File tidak bisa dibuka.', true); }
+}
+
+/* ---------- Suara ---------- */
+function fillVoices(){
+  voices = synth ? synth.getVoices() : [];
+  const sel = $('#voice');
+  const rank = v => (v.lang || '').toLowerCase().startsWith('id') ? 0 : (v.lang || '').toLowerCase().startsWith('en') ? 1 : 2;
+  voices = voices.slice().sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  sel.textContent = '';
+  voices.forEach((v, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = v.name + ' (' + v.lang + ')';
+    sel.appendChild(o);
+  });
+  const saved = load('dengarkan.voice');
+  const k = voices.findIndex(v => v.name === saved);
+  if (k >= 0){ sel.value = k; voiceTouched = true; } else pickVoice('id');
+}
+function pickVoice(lang){
+  const k = voices.findIndex(v => (v.lang || '').toLowerCase().startsWith(lang));
+  if (k >= 0) $('#voice').value = k;
+}
+if (synth){ fillVoices(); synth.onvoiceschanged = fillVoices; }
+else status('Browsermu belum mendukung suara bawaan. Coba Chrome, Edge, atau Safari.', true);
+
+/* ---------- Pemutaran ---------- */
+function mark(){
+  items.forEach((it, i) => { it.el.classList.toggle('now', i === idx); it.el.classList.toggle('done', i < idx); });
+  const cur = items[idx];
+  if (cur){
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    cur.el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+  }
+  $('#seek').value = idx;
+  const rate = parseFloat($('#rate').value);
+  const words = items.slice(idx).reduce((n, it) => n + it.text.split(/\s+/).length, 0);
+  const mins = Math.max(1, Math.round(words / (160 * rate)));
+  $('#info').textContent = (idx + 1) + '/' + items.length + ' · sisa ±' + mins + ' mnt';
+}
+let pauseT = null, pausing = false;
+const PAUSE = { ',': 260, ';': 380, ':': 380, '.': 550, '!': 550, '?': 600, '…': 700 };
+function gapFor(ch, rate){
+  const mul = parseFloat($('#gap').value);
+  return ((PAUSE[ch] || 250) * mul) / rate;
+}
+function clearPause(){ clearTimeout(pauseT); pausing = false; }
+function speak(){
+  if (!synth || !items[idx]) return;
+  const my = ++token;
+  synth.cancel();
+  clearPause();
+  const it = items[idx];
+  const parts = it.text.split(/(?<=[,;:])\s+/).filter(Boolean);
+  const rate = parseFloat($('#rate').value);
+  const v = voices[$('#voice').value];
+  let k = 0;
+  const wait = (ms, fn) => {
+    if (ms <= 0){ fn(); return; }
+    pausing = true;
+    pauseT = setTimeout(() => { pausing = false; if (my === token && playing) fn(); }, ms);
+  };
+  const next = () => {
+    if (my !== token || !playing) return;
+    if (k >= parts.length){
+      const last = it.text.trim().slice(-1);
+      const ms = it.end ? Math.max(gapFor('.', rate) * 1.6, 0) : gapFor(last, rate);
+      wait(ms, () => {
+        if (idx < items.length - 1){ idx++; mark(); speak(); }
+        else { playing = false; ui(); }
+      });
+      return;
+    }
+    const txt = parts[k++];
+    const u = new SpeechSynthesisUtterance(txt);
+    if (v){ u.voice = v; u.lang = v.lang; }
+    u.rate = rate;
+    if (/\?$/.test(txt.trim())) u.pitch = 1.12;
+    u.onend = () => {
+      if (my !== token || !playing) return;
+      if (k < parts.length) wait(gapFor(txt.trim().slice(-1), rate), next);
+      else next();
+    };
+    u.onerror = e => {
+      if (e.error === 'canceled' || e.error === 'interrupted') return;
+      playing = false; ui(); status('Suara gagal diputar (' + e.error + '). Coba pilih suara lain.', true);
+    };
+    synth.speak(u);
+  };
+  next();
+}
+/* ---------- Tetap menyala di latar belakang ---------- */
+let sil = null, wake = null;
+function silentWav(){
+  const sr = 8000, n = sr, b = new ArrayBuffer(44 + n), d = new DataView(b);
+  const w = (o, s) => [...s].forEach((c, i) => d.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); d.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); d.setUint32(16, 16, true);
+  d.setUint16(20, 1, true); d.setUint16(22, 1, true); d.setUint32(24, sr, true); d.setUint32(28, sr, true);
+  d.setUint16(32, 1, true); d.setUint16(34, 8, true); w(36, 'data'); d.setUint32(40, n, true);
+  new Uint8Array(b, 44).fill(128);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+async function keepAlive(on){
+  try {
+    if (on){
+      if (!sil){ sil = new Audio(silentWav()); sil.loop = true; }
+      sil.play().catch(() => {});
+      if ('wakeLock' in navigator && !wake){
+        wake = await navigator.wakeLock.request('screen');
+        wake.addEventListener('release', () => { wake = null; });
+      }
+    } else {
+      if (sil) sil.pause();
+      if (wake){ await wake.release(); wake = null; }
+    }
+  } catch(e){}
+}
+function setupMedia(){
+  try {
+    if (!('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    ms.metadata = new MediaMetadata({ title: $('#docname').textContent || 'Dokumen', artist: 'Dengarkan' });
+    ms.setActionHandler('play', () => play());
+    ms.setActionHandler('pause', () => pause());
+    ms.setActionHandler('previoustrack', () => go(idx - 1));
+    ms.setActionHandler('nexttrack', () => go(idx + 1));
+    ms.playbackState = playing ? 'playing' : 'paused';
+  } catch(e){}
+}
+function ui(){ $('#play').textContent = playing ? 'Jeda' : 'Putar'; keepAlive(playing); setupMedia(); }
+function play(){ playing = true; ui(); mark(); speak(); }
+function pause(){ playing = false; token++; clearPause(); synth && synth.cancel(); ui(); }
+function stop(){ playing = false; token++; clearPause(); synth && synth.cancel(); ui(); }
+function go(i){
+  idx = Math.max(0, Math.min(items.length - 1, i));
+  mark();
+  if (playing) speak();
+}
+
+$('#play').onclick = () => playing ? pause() : play();
+$('#prev').onclick = () => go(idx - 1);
+$('#next').onclick = () => go(idx + 1);
+$('#seek').oninput = e => go(parseInt(e.target.value, 10));
+$('#rate').oninput = e => {
+  $('#rateV').textContent = parseFloat(e.target.value).toFixed(1) + '×';
+  store('dengarkan.rate', e.target.value);
+  if (items.length) mark();
+};
+$('#rate').onchange = () => { if (playing) speak(); };
+$('#voice').onchange = () => {
+  voiceTouched = true;
+  const v = voices[$('#voice').value];
+  if (v) store('dengarkan.voice', v.name);
+  if (playing) speak();
+};
+$('#gap').oninput = e => {
+  $('#gapV').textContent = parseFloat(e.target.value).toFixed(1) + '×';
+  store('dengarkan.gap', e.target.value);
+};
+const savedGap = load('dengarkan.gap');
+if (savedGap){ $('#gap').value = savedGap; $('#gapV').textContent = parseFloat(savedGap).toFixed(1) + '×'; }
+const savedRate = load('dengarkan.rate');
+if (savedRate){ $('#rate').value = savedRate; $('#rateV').textContent = parseFloat(savedRate).toFixed(1) + '×'; }
+
+/* ---------- Input file ---------- */
+$('#pick').onclick = () => $('#file').click();
+$('#change').onclick = () => {
+  stop(); items = []; $('#reader').textContent = '';
+  $('#docbar').hidden = true; $('#player').hidden = true;
+  $('#drop').hidden = false; $('#paste').hidden = false; status('');
+  $('#file').value = '';
+};
+$('#file').onchange = e => handleFile(e.target.files[0]);
+$('#pasteGo').onclick = () => {
+  const t = $('#pasteText').value.trim();
+  if (!t){ status('Tempel teks dulu, lalu tekan “Bacakan teks ini”.', true); return; }
+  setText(t, 'Teks tempel');
+};
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && items.length && !/^(TEXTAREA|INPUT|SELECT|BUTTON)$/.test(e.target.tagName)){
+    e.preventDefault(); playing ? pause() : play();
+  }
+});
+window.addEventListener('beforeunload', () => synth && synth.cancel());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && playing){
+    keepAlive(true);
+    if (synth && !pausing && !synth.speaking && !synth.pending) speak();
+  }
+});
+setInterval(() => {
+  if (playing && synth && !pausing && !synth.speaking && !synth.pending && !synth.paused) speak();
+}, 4000);
+</script>
+</body>
+</html>
