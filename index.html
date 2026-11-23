@@ -97,6 +97,7 @@ textarea{width:100%;min-height:8rem;margin:.6rem 0;padding:.7rem;border:1px soli
 const $ = s => document.querySelector(s);
 const synth = window.speechSynthesis;
 let items = [], idx = 0, playing = false, token = 0, voices = [], voiceTouched = false;
+let activeUtterance = null, resumeTimer = null;
 
 function status(msg, err){ const el = $('#status'); el.textContent = msg || ''; el.className = err ? 'err' : ''; }
 function store(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
@@ -229,11 +230,16 @@ function gapFor(ch, rate){
   return ((PAUSE[ch] || 250) * mul) / rate;
 }
 function clearPause(){ clearTimeout(pauseT); pausing = false; }
+function clearTimers(){
+  clearPause();
+  clearInterval(resumeTimer);
+  resumeTimer = null;
+}
 function speak(){
   if (!synth || !items[idx]) return;
   const my = ++token;
   synth.cancel();
-  clearPause();
+  clearTimers();
   const it = items[idx];
   const parts = it.text.split(/(?<=[,;:])\s+/).filter(Boolean);
   const rate = parseFloat($('#rate').value);
@@ -257,21 +263,33 @@ function speak(){
     }
     const txt = parts[k++];
     const u = new SpeechSynthesisUtterance(txt);
+    activeUtterance = u;
     if (v){ u.voice = v; u.lang = v.lang; }
     u.rate = rate;
     if (/\?$/.test(txt.trim())) u.pitch = 1.12;
     u.onend = () => {
+      clearInterval(resumeTimer);
       if (my !== token || !playing) return;
       if (k < parts.length) wait(gapFor(txt.trim().slice(-1), rate), next);
       else next();
     };
     u.onerror = e => {
+      clearInterval(resumeTimer);
       if (e.error === 'canceled' || e.error === 'interrupted') return;
       playing = false; ui(); status('Suara gagal diputar (' + e.error + '). Coba pilih suara lain.', true);
     };
+    clearInterval(resumeTimer);
+    resumeTimer = setInterval(() => {
+      if (synth.speaking && !synth.paused){
+        synth.pause();
+        synth.resume();
+      }
+    }, 10000);
     synth.speak(u);
   };
-  next();
+  setTimeout(() => {
+    if (my === token && playing) next();
+  }, 60);
 }
 /* ---------- Tetap menyala di latar belakang ---------- */
 let sil = null, wake = null;
@@ -313,8 +331,8 @@ function setupMedia(){
 }
 function ui(){ $('#play').textContent = playing ? 'Jeda' : 'Putar'; keepAlive(playing); setupMedia(); }
 function play(){ playing = true; ui(); mark(); speak(); }
-function pause(){ playing = false; token++; clearPause(); synth && synth.cancel(); ui(); }
-function stop(){ playing = false; token++; clearPause(); synth && synth.cancel(); ui(); }
+function pause(){ playing = false; token++; clearTimers(); synth && synth.cancel(); ui(); }
+function stop(){ playing = false; token++; clearTimers(); synth && synth.cancel(); ui(); }
 function go(i){
   idx = Math.max(0, Math.min(items.length - 1, i));
   mark();
